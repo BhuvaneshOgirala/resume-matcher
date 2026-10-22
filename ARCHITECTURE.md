@@ -9,15 +9,19 @@ more explicit skill-matching logic.
 
 ## Current module boundaries
 
-- `app.py` owns the Streamlit interface: accepts a resume upload and job
-  description, collects model settings, calls the analyzer, and presents the
-  result.
+- `app.py` owns the Streamlit interface: authenticates users in shared-key
+  mode, accepts a resume upload and job description, reserves quotas, calls the
+  analyzer, and presents the result.
 - `analyzer.py` extracts resume text from PDF, DOCX, or TXT uploads, validates
   the input, calls the OpenAI chat-completions API, parses the JSON response,
   and validates the output structure.
+- `usage.py` hashes the OpenID Connect subject and reserves per-user and global
+  daily usage with Supabase.
+- `supabase/schema.sql` defines the private usage table and atomic reservation
+  function.
 - `config.py` owns configuration names and defaults. It reads the API key from
-  explicit user input or `OPENAI_API_KEY`, and resolves the model from the UI,
-  `OPENAI_MODEL`, or the default.
+  explicit user input or `OPENAI_API_KEY`, and resolves the model from
+  `OPENAI_MODEL` or the default.
 - `prompts.py` owns the model instructions, including how to compare evidence and
   the expected response fields.
 
@@ -27,24 +31,32 @@ prompt layer.
 
 ## Current request and response flow
 
-1. The candidate uploads a PDF, DOCX, or TXT resume and enters a job description.
-2. `app.py` checks that both inputs and an API key are present, then displays an
-   active status while the resume text is extracted and analysis runs.
-3. `analyzer.py` extracts selectable text from the upload. Scanned PDFs,
+1. When shared-key configuration is complete, the candidate signs in with
+   Google; otherwise the app remains in bring-your-own-key mode.
+2. The candidate uploads a PDF, DOCX, or TXT resume and enters a job description.
+3. `app.py` checks that both inputs are present and displays an active status.
+4. `analyzer.py` extracts selectable text from the upload. Scanned PDFs,
    password-protected PDFs, unsupported formats, and files over 10 MB are
    rejected with an explicit error.
-4. `config.py` resolves the API key and model from explicit input, environment
+5. `analyzer.py` validates both text inputs before any quota is reserved.
+6. In shared-key mode, `usage.py` hashes the OIDC subject and calls a Supabase
+   function that atomically enforces 20 comparisons per account and 100 total
+   comparisons per UTC day. Invalid inputs do not consume quota; a reservation
+   is consumed even if the subsequent OpenAI request fails.
+7. `config.py` resolves the API key and model from explicit input, environment
    variables, or defaults.
-5. `analyzer.py` trims and length-checks the input, then sends both documents and
+8. `analyzer.py` trims and length-checks the input, then sends both documents and
    the analysis instructions to the configured OpenAI model.
-6. The model returns JSON. The analyzer checks its types, score range,
+9. The model returns JSON. The analyzer checks its types, score range,
    recommendation value, and that there are exactly three preparation tips.
-7. `app.py` displays the score, matching skills, missing skills, recommendation,
+10. `app.py` displays the score, matching skills, missing skills, recommendation,
    and preparation tips.
 
 At present, the model performs the comparison and produces the score directly;
 there is no separate deterministic skill-extraction or scoring engine. The app
 does not persist uploaded files, extracted resume text, or analysis results.
+Shared-key mode persists only hashed account identifiers and daily counters for
+quota enforcement.
 
 ## Structured analysis contract
 
@@ -73,16 +85,18 @@ Validate model output before it reaches the interface.
 
 ## Configuration and secrets
 
-- `OPENAI_API_KEY` is a secret. Supply it as an environment variable, as a
-  top-level value in Streamlit secrets, or in the password-masked UI field.
+- `OPENAI_API_KEY` is a secret. Shared-key mode reads it from Streamlit secrets;
+  bring-your-own-key mode accepts it in the password-masked UI field.
 - `OPENAI_MODEL` selects the default OpenAI model; it defaults to
-  `gpt-4o-mini` and can be overridden in the UI.
+  `gpt-4o-mini`.
+- Shared-key mode requires Google OIDC settings in the Streamlit `[auth]`
+  secrets table and `SUPABASE_URL` plus `SUPABASE_SERVICE_ROLE_KEY` secrets.
 - Do not commit API keys. Keep a local `.streamlit/secrets.toml` out of version
   control and use the Streamlit deployment secrets manager when deploying.
-- This app is publicly accessible without authentication. Do not configure a
-  shared OpenAI key in the public deployment unless access controls and usage
-  limits are in place; otherwise visitors can incur API charges on the owner's
-  account.
+- Shared-key mode is protected by a 20-per-user and 100-total daily quota.
+  Google account creation can bypass per-user quotas, so the global cap and
+  OpenAI billing alerts are important safeguards; they do not guarantee a
+  specific maximum dollar cost.
 - `prompts.py` contains model behavior instructions, not API credentials or
   environment configuration.
 
@@ -132,6 +146,8 @@ model returns the final result in one call.
 - Do not store uploaded files, extracted resume text, or API keys unless a
   future feature explicitly requires it and defines appropriate privacy
   controls.
+- Persist only hashed account identifiers and minimum daily counters needed to
+  enforce the agreed usage limits.
 
 ## Decisions to settle before implementing a scoring engine
 

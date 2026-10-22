@@ -87,18 +87,7 @@ def analyze_resume(
     progress_callback: Callable[[str], None] | None = None,
 ) -> ResumeAnalysis:
     """Compare a resume and job description using the configured OpenAI model."""
-    resume = resume.strip()
-    job_description = job_description.strip()
-    if not resume:
-        raise ValueError("Resume text cannot be empty.")
-    if not job_description:
-        raise ValueError("Job description cannot be empty.")
-    if len(resume) > MAX_INPUT_LENGTH:
-        raise ValueError(f"Resume text must be {MAX_INPUT_LENGTH:,} characters or fewer.")
-    if len(job_description) > MAX_INPUT_LENGTH:
-        raise ValueError(
-            f"Job description must be {MAX_INPUT_LENGTH:,} characters or fewer."
-        )
+    resume, job_description = validate_analysis_inputs(resume, job_description)
 
     resolved_api_key = get_openai_api_key(api_key)
     if not resolved_api_key:
@@ -144,6 +133,23 @@ def analyze_resume(
     except json.JSONDecodeError as error:
         raise RuntimeError("The model returned an invalid analysis. Please try again.") from error
     return _validate_result(result)
+
+
+def validate_analysis_inputs(resume: str, job_description: str) -> tuple[str, str]:
+    """Trim and validate both documents before reserving paid analysis usage."""
+    resume = resume.strip()
+    job_description = job_description.strip()
+    if not resume:
+        raise ValueError("Resume text cannot be empty.")
+    if not job_description:
+        raise ValueError("Job description cannot be empty.")
+    if len(resume) > MAX_INPUT_LENGTH:
+        raise ValueError(f"Resume text must be {MAX_INPUT_LENGTH:,} characters or fewer.")
+    if len(job_description) > MAX_INPUT_LENGTH:
+        raise ValueError(
+            f"Job description must be {MAX_INPUT_LENGTH:,} characters or fewer."
+        )
+    return resume, job_description
 
 
 def _validate_result(result: Any) -> ResumeAnalysis:

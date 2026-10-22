@@ -11,7 +11,8 @@ incorrect.
 ## Live demo
 
 Try the [Resume Matcher app](https://resume-matcher-bhuvanesh.streamlit.app/).
-The public demo asks each visitor to provide their own OpenAI API key.
+When shared-key mode is configured, visitors sign in with Google instead of
+entering an OpenAI API key.
 
 ## Features
 
@@ -20,6 +21,8 @@ The public demo asks each visitor to provide their own OpenAI API key.
   the resume.
 - Recommend whether to consider applying.
 - Suggest three role-specific preparation steps.
+- Use Google sign-in and enforce daily per-account and app-wide usage limits
+  when shared-key mode is enabled.
 - Validate the model response before displaying it.
 
 ## Requirements
@@ -62,22 +65,50 @@ The public demo asks each visitor to provide their own OpenAI API key.
 
 ## Deploy on Streamlit Community Cloud
 
-1. Create an app from this GitHub repository and select the `main` branch.
-2. Set **Main file path** to `app.py`.
-3. Leave the OpenAI key unset for a public deployment so visitors supply their
-   own key in the app. For a private deployment only, the app's **Settings >
-   Secrets** can contain:
+1. Create a Supabase project and run [`supabase/schema.sql`](./supabase/schema.sql)
+   in its SQL Editor. This creates private daily usage counters and a database
+   function that atomically enforces both limits.
+2. Create a Google OAuth client for a **Web application**. Add this authorized
+   redirect URI in Google Cloud:
 
-   ```toml
-   OPENAI_API_KEY = "your-api-key"
-   OPENAI_MODEL = "gpt-4o-mini"
+   ```text
+   https://resume-matcher-bhuvanesh.streamlit.app/oauth2callback
    ```
 
-For a public app, do **not** add your personal API key as a shared app secret:
-any visitor could use it and incur charges on your account. Leave the secret
-unset so users enter their own key in the app, or add access controls and usage
-limits before configuring a shared key. Never put secrets in GitHub, including
-in a public repository's files or commit history.
+   Configure the OAuth consent screen and publish it for the intended audience;
+   while it is in testing mode, only listed test users can sign in.
+3. In Streamlit Community Cloud, open the app's **Settings > Secrets** and add
+   the following values, replacing every placeholder. Keep the Supabase
+   **service-role** key and OpenAI key private:
+
+   ```toml
+   OPENAI_API_KEY = "your-openai-api-key"
+   OPENAI_MODEL = "gpt-4o-mini"
+   SUPABASE_URL = "https://your-project.supabase.co"
+   SUPABASE_SERVICE_ROLE_KEY = "your-supabase-service-role-key"
+
+   [auth]
+   redirect_uri = "https://resume-matcher-bhuvanesh.streamlit.app/oauth2callback"
+   cookie_secret = "a-long-random-secret"
+   client_id = "your-google-oauth-client-id"
+   client_secret = "your-google-oauth-client-secret"
+   server_metadata_url = "https://accounts.google.com/.well-known/openid-configuration"
+   ```
+
+   Generate a strong cookie secret locally (for example, `openssl rand -hex 32`).
+   Never paste keys into chat, commit them, or place them in source files.
+4. Shared-key mode activates only after all OpenAI, Google OIDC, and Supabase
+   secrets are present. Until then, the app continues to request each visitor's
+   own API key and does not use an incomplete shared-key configuration.
+
+The shared key is billed to the app owner. Google sign-in is not an absolute
+barrier to creating multiple accounts, so the app also enforces a maximum of 20
+comparisons per account and 100 across all accounts per UTC day. Each attempted
+analysis consumes quota once the usage reservation is made, including attempts
+that later fail at OpenAI. Configure OpenAI billing alerts and spending limits
+as an additional safeguard. Daily usage storage contains only a hashed Google
+account identifier, date, and counters; resume and job-description text are not
+stored by this app. Old usage records are automatically removed after 30 days.
 
 ## Privacy and limitations
 
@@ -85,17 +116,19 @@ Text extracted from uploaded resumes and job-description text are sent to OpenAI
 to produce the analysis. The app accepts PDF, DOCX, and UTF-8 TXT files up to
 10 MB; scanned PDFs without selectable text are not supported. Only submit
 information you are comfortable sending to that service. The app does not
-persist the resume or analysis in its own storage. Match scores and
-recommendations are model-generated guidance, not guarantees of job suitability
-or hiring outcomes. This public demo has no user authentication or request
-limits; keep API keys private and use your own key when trying the app.
+persist resume text or analysis results. Shared-key mode stores a hashed
+account identifier and daily usage counters for quota enforcement. Match scores
+and recommendations are model-generated guidance, not guarantees of job
+suitability or hiring outcomes.
 
 ## Project structure
 
 | File | Responsibility |
 | --- | --- |
-| `app.py` | Streamlit inputs, progress status, and analysis results. |
+| `app.py` | Streamlit inputs, sign-in, quota enforcement, progress, and results. |
 | `analyzer.py` | Resume text extraction, input checks, OpenAI request, response parsing, and schema validation. |
+| `usage.py` | Hashes signed-in identities and reserves daily quota through Supabase. |
+| `supabase/schema.sql` | Private usage-counter table and atomic daily quota function. |
 | `prompts.py` | Model instructions and analysis criteria. |
 | `config.py` | Model defaults and configuration/environment-variable names. |
 | `ARCHITECTURE.md` | Current architecture and planned matching approach. |
