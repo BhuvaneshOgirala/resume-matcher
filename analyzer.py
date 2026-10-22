@@ -1,5 +1,7 @@
+from io import BytesIO
 import json
 from typing import Any, Callable, Literal, TypedDict
+from zipfile import BadZipFile
 
 from openai import OpenAI
 from openai import OpenAIError
@@ -8,6 +10,7 @@ from config import get_openai_api_key, get_openai_model
 from prompts import RESUME_ANALYSIS_INSTRUCTIONS
 
 MAX_INPUT_LENGTH = 30_000
+MAX_RESUME_FILE_SIZE = 10 * 1024 * 1024
 
 
 class ResumeAnalysis(TypedDict):
@@ -16,6 +19,64 @@ class ResumeAnalysis(TypedDict):
     missing_skills: list[str]
     recommendation: Literal["apply", "pass"]
     preparation_tips: list[str]
+
+
+def extract_resume_text(file_name: str, file_content: bytes) -> str:
+    """Extract text from a PDF, DOCX, or plain-text resume upload."""
+    if not file_content:
+        raise ValueError("The uploaded resume file is empty.")
+    if len(file_content) > MAX_RESUME_FILE_SIZE:
+        raise ValueError("Resume files must be 10 MB or smaller.")
+
+    extension = file_name.rsplit(".", 1)[-1].lower() if "." in file_name else ""
+    if extension == "txt":
+        try:
+            text = file_content.decode("utf-8-sig")
+        except UnicodeDecodeError as error:
+            raise ValueError("The text file must use UTF-8 encoding.") from error
+    elif extension == "pdf":
+        try:
+            from pypdf import PdfReader
+            from pypdf.errors import PdfReadError
+        except ImportError as error:
+            raise RuntimeError("PDF uploads require the pypdf package.") from error
+
+        try:
+            reader = PdfReader(BytesIO(file_content))
+            if reader.is_encrypted:
+                raise ValueError("Password-protected PDF resumes are not supported.")
+            text = "\n".join(page.extract_text() or "" for page in reader.pages)
+        except PdfReadError as error:
+            raise ValueError("The uploaded PDF could not be read.") from error
+    elif extension == "docx":
+        try:
+            from docx import Document
+            from docx.opc.exceptions import PackageNotFoundError
+        except ImportError as error:
+            raise RuntimeError("Word uploads require the python-docx package.") from error
+
+        try:
+            document = Document(BytesIO(file_content))
+        except (PackageNotFoundError, BadZipFile) as error:
+            raise ValueError("The uploaded Word document could not be read.") from error
+
+        text_parts = [paragraph.text for paragraph in document.paragraphs]
+        for table in document.tables:
+            text_parts.extend(
+                cell.text for row in table.rows for cell in row.cells
+            )
+        text = "\n".join(text_parts)
+    else:
+        raise ValueError("Upload a PDF, DOCX, or TXT resume file.")
+
+    if not text.strip():
+        if extension == "pdf":
+            raise ValueError(
+                "No selectable text was found in the PDF. Scanned PDFs need OCR "
+                "before they can be analyzed."
+            )
+        raise ValueError("No text was found in the uploaded resume.")
+    return text
 
 
 def analyze_resume(

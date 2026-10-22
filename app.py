@@ -1,6 +1,6 @@
 import streamlit as st
 
-from analyzer import analyze_resume
+from analyzer import analyze_resume, extract_resume_text
 from config import (
     OPENAI_API_KEY_ENV,
     OPENAI_MODEL_ENV,
@@ -16,8 +16,9 @@ st.write(
     "missing skills, and an application recommendation."
 )
 st.info(
-    "Resume and job-description text are sent to OpenAI for analysis and are not "
-    "stored by this app. Only submit information you are comfortable sharing."
+    "Text extracted from your resume and the job description are sent to OpenAI "
+    "for analysis and are not stored by this app. Only submit information you "
+    "are comfortable sharing."
 )
 
 with st.sidebar:
@@ -40,10 +41,13 @@ with st.sidebar:
 
 resume_column, job_column = st.columns(2)
 with resume_column:
-    resume = st.text_area(
-        "Resume",
-        placeholder="Paste the resume text here...",
-        height=360,
+    resume_file = st.file_uploader(
+        "Upload resume",
+        type=["pdf", "docx", "txt"],
+        help=(
+            "PDF, DOCX, or TXT; maximum 10 MB. Scanned PDFs must have selectable "
+            "text (OCR) before upload."
+        ),
     )
 with job_column:
     job_description = st.text_area(
@@ -53,8 +57,8 @@ with job_column:
     )
 
 if st.button("Compare", type="primary", use_container_width=True):
-    if not resume.strip():
-        st.error("Enter resume text before comparing.")
+    if resume_file is None:
+        st.error("Upload a resume file before comparing.")
     elif not job_description.strip():
         st.error("Enter a job description before comparing.")
     elif not api_key.strip():
@@ -62,6 +66,11 @@ if st.button("Compare", type="primary", use_container_width=True):
     else:
         try:
             with st.status("Preparing resume analysis...", expanded=True) as progress:
+                progress.write("Extracting text from the uploaded resume.")
+                resume = extract_resume_text(
+                    resume_file.name,
+                    resume_file.getvalue(),
+                )
                 progress.write("Checking the resume and job description.")
                 result = analyze_resume(
                     resume=resume,

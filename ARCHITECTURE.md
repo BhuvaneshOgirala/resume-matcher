@@ -9,11 +9,12 @@ more explicit skill-matching logic.
 
 ## Current module boundaries
 
-- `app.py` owns the Streamlit interface: collects the two text inputs and model
-  settings, calls the analyzer, and presents the result.
-- `analyzer.py` owns analysis orchestration: validates input, calls the OpenAI
-  chat-completions API, parses the JSON response, and validates the output
-  structure.
+- `app.py` owns the Streamlit interface: accepts a resume upload and job
+  description, collects model settings, calls the analyzer, and presents the
+  result.
+- `analyzer.py` extracts resume text from PDF, DOCX, or TXT uploads, validates
+  the input, calls the OpenAI chat-completions API, parses the JSON response,
+  and validates the output structure.
 - `config.py` owns configuration names and defaults. It reads the API key from
   explicit user input or `OPENAI_API_KEY`, and resolves the model from the UI,
   `OPENAI_MODEL`, or the default.
@@ -26,21 +27,24 @@ prompt layer.
 
 ## Current request and response flow
 
-1. The candidate pastes resume text and a job description into the interface.
-2. `app.py` checks that both fields and an API key are present, then displays an
-   active status while analysis is running.
-3. `config.py` resolves the API key and model from explicit input, environment
+1. The candidate uploads a PDF, DOCX, or TXT resume and enters a job description.
+2. `app.py` checks that both inputs and an API key are present, then displays an
+   active status while the resume text is extracted and analysis runs.
+3. `analyzer.py` extracts selectable text from the upload. Scanned PDFs,
+   password-protected PDFs, unsupported formats, and files over 10 MB are
+   rejected with an explicit error.
+4. `config.py` resolves the API key and model from explicit input, environment
    variables, or defaults.
-4. `analyzer.py` trims and length-checks the input, then sends both documents and
+5. `analyzer.py` trims and length-checks the input, then sends both documents and
    the analysis instructions to the configured OpenAI model.
-5. The model returns JSON. The analyzer checks its types, score range,
+6. The model returns JSON. The analyzer checks its types, score range,
    recommendation value, and that there are exactly three preparation tips.
-6. `app.py` displays the score, matching skills, missing skills, recommendation,
+7. `app.py` displays the score, matching skills, missing skills, recommendation,
    and preparation tips.
 
 At present, the model performs the comparison and produces the score directly;
 there is no separate deterministic skill-extraction or scoring engine. The app
-does not currently persist resumes or analysis results.
+does not persist uploaded files, extracted resume text, or analysis results.
 
 ## Structured analysis contract
 
@@ -125,8 +129,9 @@ model returns the final result in one call.
   logic evolves.
 - Keep API failures and invalid model responses visible as errors; do not return
   fabricated or partial success results.
-- Do not store resume text or API keys unless a future feature explicitly
-  requires it and defines appropriate privacy controls.
+- Do not store uploaded files, extracted resume text, or API keys unless a
+  future feature explicitly requires it and defines appropriate privacy
+  controls.
 
 ## Decisions to settle before implementing a scoring engine
 

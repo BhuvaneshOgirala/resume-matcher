@@ -15,7 +15,7 @@ The public demo asks each visitor to provide their own OpenAI API key.
 
 ## Features
 
-- Compare resume text against a job description.
+- Upload a PDF, DOCX, or TXT resume and compare it against a job description.
 - Show a match score, relevant skills, and important skills not evidenced by
   the resume.
 - Recommend whether to consider applying.
@@ -81,9 +81,11 @@ in a public repository's files or commit history.
 
 ## Privacy and limitations
 
-Resume text and job-description text are sent to OpenAI to produce the analysis.
-Only submit information you are comfortable sending to that service. The app
-does not persist the resume or analysis in its own storage. Match scores and
+Text extracted from uploaded resumes and job-description text are sent to OpenAI
+to produce the analysis. The app accepts PDF, DOCX, and UTF-8 TXT files up to
+10 MB; scanned PDFs without selectable text are not supported. Only submit
+information you are comfortable sending to that service. The app does not
+persist the resume or analysis in its own storage. Match scores and
 recommendations are model-generated guidance, not guarantees of job suitability
 or hiring outcomes. This public demo has no user authentication or request
 limits; keep API keys private and use your own key when trying the app.
@@ -93,7 +95,7 @@ limits; keep API keys private and use your own key when trying the app.
 | File | Responsibility |
 | --- | --- |
 | `app.py` | Streamlit inputs, progress status, and analysis results. |
-| `analyzer.py` | Input checks, OpenAI request, response parsing, and schema validation. |
+| `analyzer.py` | Resume text extraction, input checks, OpenAI request, response parsing, and schema validation. |
 | `prompts.py` | Model instructions and analysis criteria. |
 | `config.py` | Model defaults and configuration/environment-variable names. |
 | `ARCHITECTURE.md` | Current architecture and planned matching approach. |
