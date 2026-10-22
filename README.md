@@ -59,23 +59,29 @@ incorrect.
 
 1. Create an app from this GitHub repository and select the `main` branch.
 2. Set **Main file path** to `app.py`.
-3. Add the OpenAI API key in the app's **Settings > Secrets**:
+3. Leave the OpenAI key unset for a public deployment so visitors supply their
+   own key in the app. For a private deployment only, the app's **Settings >
+   Secrets** can contain:
 
    ```toml
    OPENAI_API_KEY = "your-api-key"
    OPENAI_MODEL = "gpt-4o-mini"
    ```
 
-Do not put secrets in GitHub, including in a public repository's files or commit
-history.
+For a public app, do **not** add your personal API key as a shared app secret:
+any visitor could use it and incur charges on your account. Leave the secret
+unset so users enter their own key in the app, or add access controls and usage
+limits before configuring a shared key. Never put secrets in GitHub, including
+in a public repository's files or commit history.
 
 ## Privacy and limitations
 
 Resume text and job-description text are sent to OpenAI to produce the analysis.
 Only submit information you are comfortable sending to that service. The app
-does not persist the analysis in its own storage. Match scores and
+does not persist the resume or analysis in its own storage. Match scores and
 recommendations are model-generated guidance, not guarantees of job suitability
-or hiring outcomes.
+or hiring outcomes. This public demo has no user authentication or request
+limits; keep API keys private and use your own key when trying the app.
 
 ## Project structure
 

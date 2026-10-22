@@ -15,6 +15,10 @@ st.write(
     "Compare a resume with a job description to see the strongest matches, "
     "missing skills, and an application recommendation."
 )
+st.info(
+    "Resume and job-description text are sent to OpenAI for analysis and are not "
+    "stored by this app. Only submit information you are comfortable sharing."
+)
 
 with st.sidebar:
     st.header("Model settings")
@@ -23,8 +27,9 @@ with st.sidebar:
         value=get_openai_api_key(),
         type="password",
         help=(
-            f"Set {OPENAI_API_KEY_ENV} in your environment or Streamlit secrets, "
-            "or enter a key here. The app does not save it."
+            f"Set {OPENAI_API_KEY_ENV} in your environment or enter a key here. "
+            "For a public app, do not add a personal key as a shared secret; "
+            "visitors could use it and incur charges on your account."
         ),
     )
     model = st.text_input(

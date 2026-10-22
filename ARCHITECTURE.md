@@ -75,6 +75,10 @@ Validate model output before it reaches the interface.
   `gpt-4o-mini` and can be overridden in the UI.
 - Do not commit API keys. Keep a local `.streamlit/secrets.toml` out of version
   control and use the Streamlit deployment secrets manager when deploying.
+- This app is publicly accessible without authentication. Do not configure a
+  shared OpenAI key in the public deployment unless access controls and usage
+  limits are in place; otherwise visitors can incur API charges on the owner's
+  account.
 - `prompts.py` contains model behavior instructions, not API credentials or
   environment configuration.
 
