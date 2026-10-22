@@ -8,6 +8,11 @@ This project is intended as a candidate self-assessment aid. It is not a hiring
 decision system, and its model-generated assessment may be incomplete or
 incorrect.
 
+## Live demo
+
+Try the [Resume Matcher app](https://resume-matcher-bhuvanesh.streamlit.app/).
+The public demo asks each visitor to provide their own OpenAI API key.
+
 ## Features
 
 - Compare resume text against a job description.
